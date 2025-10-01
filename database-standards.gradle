@@ -1,0 +1,248 @@
+/**
+ * 数据库规范约束
+ *
+ * 作者: kk
+ * 创建日期: 2025-10-01
+ * 规范来源: ~/.claude/coding-standards/database-standards.md
+ */
+
+// 检查SQL文件中的SELECT *
+tasks.register('checkSelectStar') {
+    group = 'verification'
+    description = '检查SQL文件中是否使用SELECT *'
+
+    doLast {
+        def violations = []
+        def sqlFiles = fileTree(dir: 'src/main/resources', include: '**/*.sql')
+        def xmlFiles = fileTree(dir: 'src/main/resources', include: '**/mapper/**/*.xml')
+
+        // 检查SQL文件
+        sqlFiles.each { file ->
+            def lineNumber = 0
+            file.eachLine { line, num ->
+                lineNumber = num
+                // 检测SELECT *（忽略大小写，忽略注释）
+                if (!line.trim().startsWith('--') && !line.trim().startsWith('/*')) {
+                    if (line =~ /(?i)select\s+\*\s+from/) {
+                        violations << "${file.path}:${lineNumber} - 禁止使用SELECT *"
+                    }
+                }
+            }
+        }
+
+        // 检查MyBatis XML文件
+        xmlFiles.each { file ->
+            def lineNumber = 0
+            file.eachLine { line, num ->
+                lineNumber = num
+                // 检测SELECT *（忽略XML注释）
+                if (!line.trim().startsWith('<!--')) {
+                    if (line =~ /(?i)select\s+\*\s+from/) {
+                        violations << "${file.path}:${lineNumber} - 禁止使用SELECT *"
+                    }
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ SELECT * 检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n修改建议: 明确指定需要查询的字段名，避免查询不需要的字段"
+            println "="*60 + "\n"
+            throw new GradleException("数据库规范检查失败：存在SELECT *")
+        } else {
+            println "✅ SELECT * 检查通过"
+        }
+    }
+}
+
+// 检查Entity实体类必备字段
+tasks.register('checkEntityRequiredFields') {
+    group = 'verification'
+    description = '检查Entity实体类是否包含必备字段（id, createTime, updateTime, isDeleted）'
+
+    doLast {
+        def violations = []
+        def entityFiles = fileTree(dir: 'src/main/java', include: '**/*entity/**/*.java')
+
+        // 必备字段列表
+        def requiredFields = ['id', 'createTime', 'updateTime', 'isDeleted']
+
+        entityFiles.each { file ->
+            // 跳过Enum、接口、抽象类
+            def content = file.text
+            if (content.contains('enum ') || content.contains('interface ') || content.contains('abstract class')) {
+                return
+            }
+
+            // 检查是否标注了@Table注解（MyBatis-Flex实体类标志）
+            if (!content.contains('@Table')) {
+                return
+            }
+
+            // 检查必备字段
+            def missingFields = []
+            requiredFields.each { field ->
+                // 检查字段声明（支持驼峰和下划线命名）
+                if (!content.contains("private") || !(content =~ /private\s+\w+\s+${field}/)) {
+                    // 也检查可能的下划线命名
+                    def snakeCase = field.replaceAll(/([A-Z])/, '_$1').toLowerCase()
+                    if (!(content =~ /private\s+\w+\s+${snakeCase}/)) {
+                        missingFields << field
+                    }
+                }
+            }
+
+            if (!missingFields.isEmpty()) {
+                violations << "${file.path} - 缺少必备字段: ${missingFields.join(', ')}"
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ Entity必备字段检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n必备字段说明:"
+            println "  - id: 主键ID"
+            println "  - createTime: 创建时间"
+            println "  - updateTime: 更新时间"
+            println "  - isDeleted: 逻辑删除标识"
+            println "="*60 + "\n"
+            throw new GradleException("数据库规范检查失败：Entity缺少必备字段")
+        } else {
+            println "✅ Entity必备字段检查通过"
+        }
+    }
+}
+
+// 检查索引命名规范
+tasks.register('checkIndexNaming') {
+    group = 'verification'
+    description = '检查SQL文件中的索引命名是否符合规范（idx_/uk_前缀）'
+
+    doLast {
+        def violations = []
+        def sqlFiles = fileTree(dir: 'src/main/resources', include: '**/*.sql')
+
+        sqlFiles.each { file ->
+            def lineNumber = 0
+            file.eachLine { line, num ->
+                lineNumber = num
+
+                // 跳过注释
+                if (line.trim().startsWith('--') || line.trim().startsWith('/*')) {
+                    return
+                }
+
+                // 检测CREATE INDEX语句
+                if (line =~ /(?i)create\s+(unique\s+)?index\s+(\w+)/) {
+                    def matcher = line =~ /(?i)create\s+(unique\s+)?index\s+(\w+)/
+                    if (matcher.find()) {
+                        def indexName = matcher.group(2)
+                        def isUnique = matcher.group(1) != null
+
+                        // 检查索引命名前缀
+                        if (isUnique && !indexName.startsWith('uk_')) {
+                            violations << "${file.path}:${lineNumber} - 唯一索引应使用uk_前缀: ${indexName}"
+                        } else if (!isUnique && !indexName.startsWith('idx_')) {
+                            violations << "${file.path}:${lineNumber} - 普通索引应使用idx_前缀: ${indexName}"
+                        }
+                    }
+                }
+
+                // 检测KEY/INDEX定义（在CREATE TABLE中）
+                if (line =~ /(?i)(unique\s+)?(key|index)\s+(\w+)/) {
+                    def matcher = line =~ /(?i)(unique\s+)?(key|index)\s+(\w+)/
+                    if (matcher.find()) {
+                        def indexName = matcher.group(3)
+                        def isUnique = matcher.group(1) != null
+
+                        // 跳过PRIMARY KEY
+                        if (indexName.toLowerCase() == 'primary') {
+                            return
+                        }
+
+                        if (isUnique && !indexName.startsWith('uk_')) {
+                            violations << "${file.path}:${lineNumber} - 唯一索引应使用uk_前缀: ${indexName}"
+                        } else if (!isUnique && !indexName.startsWith('idx_')) {
+                            violations << "${file.path}:${lineNumber} - 普通索引应使用idx_前缀: ${indexName}"
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "⚠️  索引命名规范检查警告！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n命名规范:"
+            println "  - 普通索引: idx_字段名（如idx_user_id）"
+            println "  - 唯一索引: uk_字段名（如uk_mobile）"
+            println "  - 联合索引: idx_字段1_字段2（如idx_user_id_status）"
+            println "="*60 + "\n"
+            // 注意：索引命名检查仅警告，不中断编译
+        } else {
+            println "✅ 索引命名规范检查通过"
+        }
+    }
+}
+
+// 检查金额字段类型
+tasks.register('checkAmountFieldType') {
+    group = 'verification'
+    description = '检查Entity中的金额字段是否使用BigDecimal类型'
+
+    doLast {
+        def violations = []
+        def entityFiles = fileTree(dir: 'src/main/java', include: '**/*entity/**/*.java')
+
+        entityFiles.each { file ->
+            def content = file.text
+            def lineNumber = 0
+
+            // 跳过非实体类
+            if (!content.contains('@Table')) {
+                return
+            }
+
+            file.eachLine { line, num ->
+                lineNumber = num
+
+                // 检测可能是金额字段的命名（amount, price, money, fee等）
+                if (line =~ /(?i)private\s+(Double|Float|double|float)\s+(amount|price|money|fee|total|balance|cost|charge)/) {
+                    violations << "${file.path}:${lineNumber} - 金额字段应使用BigDecimal类型，不要使用Float/Double"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ 金额字段类型检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n修改建议: 金额字段必须使用BigDecimal类型，避免精度丢失"
+            println "="*60 + "\n"
+            throw new GradleException("数据库规范检查失败：金额字段使用Float/Double类型")
+        } else {
+            println "✅ 金额字段类型检查通过"
+        }
+    }
+}
+
+// 综合检查任务
+tasks.register('checkDatabaseStandards') {
+    group = 'verification'
+    description = '执行所有数据库规范检查'
+
+    dependsOn checkSelectStar
+    dependsOn checkEntityRequiredFields
+    dependsOn checkIndexNaming
+    dependsOn checkAmountFieldType
+}
+
+println "✓ 数据库规范约束已加载 (database-standards.gradle)"

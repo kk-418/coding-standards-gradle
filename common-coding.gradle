@@ -1,0 +1,233 @@
+/**
+ * 通用编码规范约束
+ *
+ * 作者: kk
+ * 创建日期: 2025-10-01
+ * 规范来源: ~/.claude/coding-standards/common-coding.md
+ */
+
+// 检查全限定类名使用
+tasks.register('checkFullyQualifiedNames') {
+    group = 'verification'
+    description = '检查是否在方法中使用全限定类名（应使用import）'
+
+    doLast {
+        def violations = []
+        def javaFiles = fileTree(dir: 'src/main/java', include: '**/*.java')
+
+        javaFiles.each { file ->
+            def inMethod = false
+            def lineNumber = 0
+
+            file.eachLine { line, num ->
+                lineNumber = num
+
+                // 检测方法开始
+                if (line =~ /^\s*(public|private|protected|static|final|void|[\w<>]+)\s+[\w<>]+\s*\([^)]*\)\s*(\{|throws)/) {
+                    inMethod = true
+                }
+
+                // 检测方法结束
+                if (inMethod && line =~ /^\s*\}\s*$/) {
+                    inMethod = false
+                }
+
+                // 在方法内检测全限定类名（排除注释和字符串）
+                if (inMethod && !line.trim().startsWith('//') && !line.trim().startsWith('*')) {
+                    // 匹配包含至少两个点的全限定类名
+                    def matcher = line =~ /\b([a-z]+\.[a-z]+\.[A-Z][\w.]*)/
+                    if (matcher.find()) {
+                        def fullyQualifiedName = matcher.group(1)
+                        // 排除常见的false positive（如方法链调用）
+                        if (!line.contains("\"${fullyQualifiedName}\"") &&
+                            !line.contains("'${fullyQualifiedName}'")) {
+                            violations << "${file.path}:${lineNumber} - 检测到全限定类名: ${fullyQualifiedName}"
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ 全限定类名检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n修改建议: 使用import语句引入类，避免在方法中使用全限定类名"
+            println "="*60 + "\n"
+            throw new GradleException("编码规范检查失败：存在全限定类名使用")
+        } else {
+            println "✅ 全限定类名检查通过"
+        }
+    }
+}
+
+// 检查魔法值
+tasks.register('checkMagicValues') {
+    group = 'verification'
+    description = '检查代码中的魔法值（未定义的常量）'
+
+    doLast {
+        def violations = []
+        def javaFiles = fileTree(dir: 'src/main/java', include: '**/*.java')
+
+        javaFiles.each { file ->
+            def inClass = false
+            def lineNumber = 0
+
+            file.eachLine { line, num ->
+                lineNumber = num
+
+                // 跳过常量定义行
+                if (line =~ /static\s+final\s+(String|int|long|double|float)/) {
+                    return
+                }
+
+                // 跳过注释
+                if (line.trim().startsWith('//') || line.trim().startsWith('*')) {
+                    return
+                }
+
+                // 检测字符串魔法值（排除空字符串和常见占位符）
+                def stringMatcher = line =~ /"([^"]+)"/
+                while (stringMatcher.find()) {
+                    def value = stringMatcher.group(1)
+                    // 排除空字符串、占位符、简单分隔符
+                    if (value.length() > 1 &&
+                        !value.matches(/[,;:.\-_\s]+/) &&
+                        !value.matches(/\$\{.*\}/) &&
+                        !value.matches(/%[sd]/) &&
+                        value.contains(':')) {  // 可能是业务相关的key
+                        violations << "${file.path}:${lineNumber} - 检测到魔法值: \"${value}\""
+                    }
+                }
+
+                // 检测数字魔法值（排除0, 1, -1等常见值）
+                def numberMatcher = line =~ /\b(\d{3,})\b/  // 3位以上的数字
+                while (numberMatcher.find()) {
+                    def value = numberMatcher.group(1)
+                    if (!line.contains("\"${value}\"")) {  // 排除字符串中的数字
+                        violations << "${file.path}:${lineNumber} - 检测到魔法值: ${value}"
+                    }
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "⚠️  魔法值检查警告！发现 ${violations.size()} 个可能的问题:"
+            println "="*60
+            violations.take(20).each { println it }  // 只显示前20个
+            if (violations.size() > 20) {
+                println "... 还有 ${violations.size() - 20} 个问题未显示"
+            }
+            println "\n修改建议: 将魔法值定义为常量并使用常量名"
+            println "="*60 + "\n"
+            // 注意：魔法值检查仅警告，不中断编译
+        } else {
+            println "✅ 魔法值检查通过"
+        }
+    }
+}
+
+// 检查Long常量后缀
+tasks.register('checkLongConstantSuffix') {
+    group = 'verification'
+    description = '检查Long常量是否使用大写L后缀'
+
+    doLast {
+        def violations = []
+        def javaFiles = fileTree(dir: 'src/main/java', include: '**/*.java')
+
+        javaFiles.each { file ->
+            def lineNumber = 0
+
+            file.eachLine { line, num ->
+                lineNumber = num
+
+                // 跳过注释
+                if (line.trim().startsWith('//') || line.trim().startsWith('*')) {
+                    return
+                }
+
+                // 检测使用小写l的long字面值
+                def matcher = line =~ /\b(\d+l)\b/
+                if (matcher.find()) {
+                    violations << "${file.path}:${lineNumber} - Long常量使用小写l后缀: ${matcher.group(1)}"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ Long常量后缀检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n修改建议: 将小写l改为大写L，避免与数字1混淆"
+            println "="*60 + "\n"
+            throw new GradleException("编码规范检查失败：Long常量使用小写l后缀")
+        } else {
+            println "✅ Long常量后缀检查通过"
+        }
+    }
+}
+
+// 检查集合判空方法
+tasks.register('checkCollectionEmpty') {
+    group = 'verification'
+    description = '检查集合判空是否使用CollectionUtils'
+
+    doLast {
+        def violations = []
+        def javaFiles = fileTree(dir: 'src/main/java', include: '**/*.java')
+
+        javaFiles.each { file ->
+            def lineNumber = 0
+
+            file.eachLine { line, num ->
+                lineNumber = num
+
+                // 跳过注释
+                if (line.trim().startsWith('//') || line.trim().startsWith('*')) {
+                    return
+                }
+
+                // 检测不推荐的判空方式
+                if (line =~ /\.size\(\)\s*==\s*0/ ||
+                    line =~ /\.size\(\)\s*>\s*0/ ||
+                    line =~ /\.length\s*==\s*0/ ||
+                    line =~ /\.length\s*>\s*0/) {
+                    violations << "${file.path}:${lineNumber} - 建议使用CollectionUtils.isEmpty()判空"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "⚠️  集合判空检查警告！发现 ${violations.size()} 个建议改进:"
+            println "="*60
+            violations.take(10).each { println it }  // 只显示前10个
+            if (violations.size() > 10) {
+                println "... 还有 ${violations.size() - 10} 个问题未显示"
+            }
+            println "\n推荐做法: 使用Apache Commons的CollectionUtils.isEmpty()和isNotEmpty()"
+            println "="*60 + "\n"
+            // 注意：此检查仅警告，不中断编译
+        } else {
+            println "✅ 集合判空检查通过"
+        }
+    }
+}
+
+// 综合检查任务
+tasks.register('checkCommonCodingStandards') {
+    group = 'verification'
+    description = '执行所有通用编码规范检查'
+
+    dependsOn checkFullyQualifiedNames
+    dependsOn checkLongConstantSuffix
+    dependsOn checkMagicValues
+    dependsOn checkCollectionEmpty
+}
+
+println "✓ 通用编码规范约束已加载 (common-coding.gradle)"

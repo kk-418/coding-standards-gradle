@@ -1,0 +1,270 @@
+/**
+ * 编码规范统一配置文件
+ *
+ * 作者: kk
+ * 创建日期: 2025-10-01
+ * 说明: 整合所有编码规范检查，提供统一的检查入口
+ *
+ * 使用方式:
+ * 1. 在项目的build.gradle中添加: apply from: 'coding-standards-gradle/coding-standards.gradle'
+ * 2. 运行检查: gradle checkCodingStandards
+ * 3. 编译时自动检查: gradle compileJava (会自动执行所有强制性检查)
+ */
+
+println "="*60
+println "  SBT Plus 编码规范检查工具"
+println "  作者: kk"
+println "  版本: 1.0.0"
+println "="*60
+
+// 加载所有规范模块
+apply from: 'coding-standards-gradle/common-coding.gradle'
+apply from: 'coding-standards-gradle/database-standards.gradle'
+apply from: 'coding-standards-gradle/java-coding-standards.gradle'
+apply from: 'coding-standards-gradle/mybatis-flex-standards.gradle'
+
+// 统一检查任务
+tasks.register('checkCodingStandards') {
+    group = 'verification'
+    description = '执行所有编码规范检查（包括强制性和建议性）'
+
+    // 通用编码规范
+    dependsOn 'checkCommonCodingStandards'
+
+    // 数据库规范
+    dependsOn 'checkDatabaseStandards'
+
+    // Java编码规范
+    dependsOn 'checkJavaCodingStandards'
+
+    // MyBatis-Flex规范
+    dependsOn 'checkMyBatisFlexStandards'
+
+    doLast {
+        println "\n" + "="*60
+        println "✅ 所有编码规范检查完成！"
+        println "="*60 + "\n"
+    }
+}
+
+// 强制性检查任务（编译前必须通过）
+// 注意：这个任务定义在根项目，不能直接依赖子项目的validateVoTypes任务
+// validateVoTypes会在子项目的compileJava中单独执行
+tasks.register('checkMandatoryStandards') {
+    group = 'verification'
+    description = '执行强制性编码规范检查（编译前必须通过）'
+
+    // 强制性检查列表（仅包含根项目级别的检查）
+    dependsOn 'checkFullyQualifiedNames'          // 禁止全限定类名
+    dependsOn 'checkLongConstantSuffix'           // Long常量后缀
+    dependsOn 'checkSelectStar'                   // 禁止SELECT *
+    dependsOn 'checkEntityRequiredFields'         // Entity必备字段
+    dependsOn 'checkAmountFieldType'              // 金额字段类型
+    dependsOn 'checkEnumNaming'                   // 枚举类命名
+    dependsOn 'checkResultPageResultNesting'      // Result/PageResult嵌套
+    dependsOn 'checkEntityAnnotations'            // Entity注解
+    dependsOn 'checkMapperInterface'              // Mapper接口
+    dependsOn 'checkLogicDeleteField'             // 逻辑删除字段
+    dependsOn 'checkVersionField'                 // 乐观锁版本号字段
+
+    doLast {
+        println "\n" + "="*60
+        println "✅ 强制性编码规范检查通过！"
+        println "="*60 + "\n"
+    }
+}
+
+// 建议性检查任务（仅警告，不中断编译）
+tasks.register('checkAdvisoryStandards') {
+    group = 'verification'
+    description = '执行建议性编码规范检查（仅警告，不中断编译）'
+
+    // 建议性检查列表
+    dependsOn 'checkMagicValues'                  // 魔法值检查
+    dependsOn 'checkCollectionEmpty'              // 集合判空
+    dependsOn 'checkIndexNaming'                  // 索引命名规范
+    dependsOn 'checkClassNaming'                  // 类命名规范
+    dependsOn 'checkLombokAnnotations'            // Lombok注解
+    dependsOn 'checkRecordUsage'                  // Record类使用
+    dependsOn 'checkEnumFromCodeMethod'           // 枚举fromCode方法
+    dependsOn 'checkEnumValueAnnotation'          // 枚举@EnumValue注解
+    dependsOn 'checkTimeFieldAutoFill'            // 时间字段自动填充
+
+    doLast {
+        println "\n" + "="*60
+        println "💡 建议性编码规范检查完成（以上警告不影响编译）"
+        println "="*60 + "\n"
+    }
+}
+
+// 注意：不在根项目级别将checkMandatoryStandards集成到compileJava
+// 因为validateVoTypes任务在子项目中定义，会在子项目的compileJava中自动执行
+// 用户可以手动执行 gradle checkMandatoryStandards 来运行所有强制性检查
+
+// 生成检查报告
+tasks.register('generateCodingStandardsReport') {
+    group = 'verification'
+    description = '生成编码规范检查报告'
+
+    doLast {
+        def reportDir = file("${project.buildDir}/reports/coding-standards")
+        reportDir.mkdirs()
+
+        def reportFile = new File(reportDir, "coding-standards-report.md")
+        def timestamp = new Date().format('yyyy-MM-dd HH:mm:ss')
+
+        reportFile.text = """# 编码规范检查报告
+
+**项目**: ${project.name}
+**生成时间**: ${timestamp}
+
+---
+
+## 检查规则概览
+
+### 强制性检查（编译时执行）
+1. ✓ 禁止全限定类名检查
+2. ✓ Long常量后缀检查（必须使用大写L）
+3. ✓ 禁止SELECT * 检查
+4. ✓ Entity必备字段检查（id/createTime/updateTime/isDeleted）
+5. ✓ 金额字段类型检查（必须使用BigDecimal）
+6. ✓ 枚举类命名检查（必须以Enum结尾）
+7. ✓ Result/PageResult嵌套检查
+8. ✓ Entity注解检查（@Table/@Id）
+9. ✓ Mapper接口检查（继承BaseMapper）
+10. ✓ 逻辑删除字段检查
+11. ✓ 乐观锁版本号字段检查
+
+### 建议性检查（仅警告）
+1. ⚠ 魔法值检查
+2. ⚠ 集合判空方法检查
+3. ⚠ 索引命名规范检查
+4. ⚠ 类命名规范检查
+5. ⚠ Lombok注解使用检查
+6. ⚠ Record类使用建议
+7. ⚠ 枚举fromCode方法检查
+8. ⚠ 枚举@EnumValue注解检查
+9. ⚠ 时间字段自动填充检查
+
+---
+
+## 使用说明
+
+### 执行所有检查
+```bash
+gradle checkCodingStandards
+```
+
+### 仅执行强制性检查
+```bash
+gradle checkMandatoryStandards
+```
+
+### 仅执行建议性检查
+```bash
+gradle checkAdvisoryStandards
+```
+
+### 执行特定模块检查
+```bash
+gradle checkCommonCodingStandards     # 通用编码规范
+gradle checkDatabaseStandards         # 数据库规范
+gradle checkJavaCodingStandards       # Java编码规范
+gradle checkMyBatisFlexStandards      # MyBatis-Flex规范
+```
+
+---
+
+## 规范文档
+- [通用编码规范](~/.claude/coding-standards/common-coding.md)
+- [数据库规范](~/.claude/coding-standards/database-standards.md)
+- [Java编码规范](~/.claude/coding-standards/java-coding-standards.md)
+- [MyBatis-Flex规范](~/.claude/coding-standards/mybatis-flex-standards.md)
+
+---
+
+**报告生成于**: ${timestamp}
+"""
+
+        println "\n" + "="*60
+        println "📄 编码规范检查报告已生成:"
+        println "   ${reportFile.absolutePath}"
+        println "="*60 + "\n"
+    }
+}
+
+// 帮助信息
+tasks.register('codingStandardsHelp') {
+    group = 'help'
+    description = '显示编码规范检查工具的使用帮助'
+
+    doLast {
+        println """
+${"="*60}
+  SBT Plus 编码规范检查工具 - 使用帮助
+${"="*60}
+
+【核心检查任务】
+  gradle checkCodingStandards         执行所有编码规范检查
+  gradle checkMandatoryStandards      执行强制性检查（编译前必须通过）
+  gradle checkAdvisoryStandards       执行建议性检查（仅警告）
+
+【分模块检查】
+  gradle checkCommonCodingStandards   通用编码规范检查
+  gradle checkDatabaseStandards       数据库规范检查
+  gradle checkJavaCodingStandards     Java编码规范检查
+  gradle checkMyBatisFlexStandards    MyBatis-Flex规范检查
+
+【具体检查项】
+  通用编码:
+    - checkFullyQualifiedNames        禁止全限定类名
+    - checkMagicValues                魔法值检查
+    - checkLongConstantSuffix         Long常量后缀
+    - checkCollectionEmpty            集合判空
+
+  数据库:
+    - checkSelectStar                 禁止SELECT *
+    - checkEntityRequiredFields       Entity必备字段
+    - checkIndexNaming                索引命名规范
+    - checkAmountFieldType            金额字段类型
+
+  Java编码:
+    - checkEnumNaming                 枚举类命名
+    - checkClassNaming                类命名规范
+    - checkLombokAnnotations          Lombok注解
+    - checkResultPageResultNesting    Result/PageResult嵌套
+    - checkRecordUsage                Record类使用
+    - checkEnumFromCodeMethod         枚举fromCode方法
+
+  MyBatis-Flex:
+    - checkEntityAnnotations          Entity注解
+    - checkMapperInterface            Mapper接口
+    - checkEnumValueAnnotation        枚举@EnumValue注解
+    - checkLogicDeleteField           逻辑删除字段
+    - checkVersionField               乐观锁版本号字段
+    - checkTimeFieldAutoFill          时间字段自动填充
+
+【报告生成】
+  gradle generateCodingStandardsReport  生成检查报告
+
+【自动执行】
+  编译时自动执行强制性检查:
+    gradle compileJava                会自动执行checkMandatoryStandards
+
+${"="*60}
+规范文档路径: ~/.claude/coding-standards/
+${"="*60}
+        """
+    }
+}
+
+println """
+已加载编码规范模块:
+  ✓ common-coding.gradle          通用编码规范
+  ✓ database-standards.gradle     数据库规范
+  ✓ java-coding-standards.gradle  Java编码规范
+  ✓ mybatis-flex-standards.gradle MyBatis-Flex规范
+
+执行 'gradle codingStandardsHelp' 查看使用帮助
+${"="*60}
+"""

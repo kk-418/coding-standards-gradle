@@ -1,0 +1,305 @@
+/**
+ * Java编码规范约束
+ *
+ * 作者: kk
+ * 创建日期: 2025-10-01
+ * 规范来源: ~/.claude/coding-standards/java-coding-standards.md
+ */
+
+// 检查枚举类命名规范
+tasks.register('checkEnumNaming') {
+    group = 'verification'
+    description = '检查枚举类是否以Enum结尾'
+
+    doLast {
+        def violations = []
+        def javaFiles = fileTree(dir: 'src/main/java', include: '**/*.java')
+
+        javaFiles.each { file ->
+            def content = file.text
+
+            // 检测枚举类定义
+            if (content =~ /public\s+enum\s+(\w+)/) {
+                def matcher = content =~ /public\s+enum\s+(\w+)/
+                while (matcher.find()) {
+                    def enumName = matcher.group(1)
+                    if (!enumName.endsWith('Enum')) {
+                        violations << "${file.path} - 枚举类应以Enum结尾: ${enumName}"
+                    }
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ 枚举类命名检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n命名规范: 枚举类必须以Enum结尾（如PaymentStatusEnum、OrderTypeEnum）"
+            println "="*60 + "\n"
+            throw new GradleException("Java编码规范检查失败：枚举类命名不符合规范")
+        } else {
+            println "✅ 枚举类命名检查通过"
+        }
+    }
+}
+
+// 检查类命名规范
+tasks.register('checkClassNaming') {
+    group = 'verification'
+    description = '检查类命名是否符合规范（Service/ServiceImpl/Repository等）'
+
+    doLast {
+        def violations = []
+        def javaFiles = fileTree(dir: 'src/main/java', include: '**/*.java')
+
+        javaFiles.each { file ->
+            def fileName = file.name
+            def content = file.text
+
+            // 检查Service实现类
+            if (content.contains('implements') && content =~ /Service\s/) {
+                if (!fileName.endsWith('ServiceImpl.java') && fileName.contains('Service')) {
+                    // 排除接口定义
+                    if (!content.contains('interface ')) {
+                        violations << "${file.path} - Service实现类应以ServiceImpl结尾"
+                    }
+                }
+            }
+
+            // 检查VO类命名
+            if (fileName.endsWith('VO.java') || fileName.endsWith('Vo.java')) {
+                if (!content.contains('record ') && !content.contains('class ')) {
+                    violations << "${file.path} - VO类定义异常"
+                }
+            }
+
+            // 检查Controller类
+            if (content.contains('@RestController') || content.contains('@Controller')) {
+                if (!fileName.endsWith('Controller.java')) {
+                    violations << "${file.path} - Controller类应以Controller结尾"
+                }
+            }
+
+            // 检查Repository/Mapper接口
+            if (content.contains('extends BaseMapper')) {
+                if (!fileName.endsWith('Mapper.java') && !fileName.endsWith('Repository.java')) {
+                    violations << "${file.path} - Mapper接口应以Mapper或Repository结尾"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "⚠️  类命名规范检查警告！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n命名规范:"
+            println "  - Service实现: *ServiceImpl"
+            println "  - Controller: *Controller"
+            println "  - Mapper: *Mapper 或 *Repository"
+            println "  - VO: *VO"
+            println "="*60 + "\n"
+            // 注意：类命名检查仅警告，不中断编译
+        } else {
+            println "✅ 类命名规范检查通过"
+        }
+    }
+}
+
+// 检查Lombok注解使用
+tasks.register('checkLombokAnnotations') {
+    group = 'verification'
+    description = '检查Lombok注解使用是否符合规范（避免@SneakyThrows）'
+
+    doLast {
+        def violations = []
+        def javaFiles = fileTree(dir: 'src/main/java', include: '**/*.java')
+
+        javaFiles.each { file ->
+            def lineNumber = 0
+
+            file.eachLine { line, num ->
+                lineNumber = num
+
+                // 检测不推荐的Lombok注解
+                if (line.contains('@SneakyThrows')) {
+                    violations << "${file.path}:${lineNumber} - 不推荐使用@SneakyThrows，建议显式异常处理"
+                }
+
+                if (line.contains('@Synchronized')) {
+                    violations << "${file.path}:${lineNumber} - 不推荐使用@Synchronized，建议使用Java原生synchronized"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "⚠️  Lombok注解使用警告！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n推荐做法:"
+            println "  - 避免@SneakyThrows，使用try-catch显式处理异常"
+            println "  - 避免@Synchronized，使用synchronized关键字"
+            println "="*60 + "\n"
+            // 注意：Lombok注解检查仅警告，不中断编译
+        } else {
+            println "✅ Lombok注解使用检查通过"
+        }
+    }
+}
+
+// 检查Result嵌套PageResult
+tasks.register('checkResultPageResultNesting') {
+    group = 'verification'
+    description = '检查是否存在Result<PageResult>嵌套使用'
+
+    doLast {
+        def violations = []
+        def javaFiles = fileTree(dir: 'src/main/java', include: '**/*.java')
+
+        javaFiles.each { file ->
+            def lineNumber = 0
+
+            file.eachLine { line, num ->
+                lineNumber = num
+
+                // 检测Result<PageResult>嵌套
+                if (line =~ /Result\s*<\s*PageResult\s*</) {
+                    violations << "${file.path}:${lineNumber} - 禁止使用Result<PageResult>嵌套，分页查询直接返回PageResult"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ Result/PageResult嵌套检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n正确做法:"
+            println "  - 普通查询: Result<T>"
+            println "  - 分页查询: PageResult<T>"
+            println "  - 禁止使用: Result<PageResult<T>>"
+            println "="*60 + "\n"
+            throw new GradleException("Java编码规范检查失败：存在Result<PageResult>嵌套")
+        } else {
+            println "✅ Result/PageResult嵌套检查通过"
+        }
+    }
+}
+
+// 检查Record类使用规范
+tasks.register('checkRecordUsage') {
+    group = 'verification'
+    description = '检查Record类是否用于DTO/VO/Request/Response'
+
+    doLast {
+        def violations = []
+        def recommendRecordFiles = []
+        def javaFiles = fileTree(dir: 'src/main/java', include: '**/*.java')
+
+        javaFiles.each { file ->
+            def fileName = file.name
+            def content = file.text
+
+            // 检查DTO/VO/Request/Response是否使用Record
+            if (fileName.endsWith('DTO.java') ||
+                fileName.endsWith('Dto.java') ||
+                fileName.endsWith('VO.java') ||
+                fileName.endsWith('Vo.java') ||
+                fileName.endsWith('Request.java') ||
+                fileName.endsWith('Response.java')) {
+
+                // 排除已经是Record的
+                if (!content.contains('record ')) {
+                    // 检查是否是简单的数据类（没有复杂业务逻辑）
+                    if (!content.contains('public void ') &&
+                        !content.contains('private void ') &&
+                        !content.contains('@Service') &&
+                        !content.contains('@Component')) {
+                        recommendRecordFiles << "${file.path} - 建议使用Record类定义"
+                    }
+                }
+            }
+        }
+
+        if (!recommendRecordFiles.isEmpty()) {
+            println "\n" + "="*60
+            println "💡 Record类使用建议！发现 ${recommendRecordFiles.size()} 个可优化项:"
+            println "="*60
+            recommendRecordFiles.take(10).each { println it }
+            if (recommendRecordFiles.size() > 10) {
+                println "... 还有 ${recommendRecordFiles.size() - 10} 个建议未显示"
+            }
+            println "\nRecord类优势:"
+            println "  - 简洁的不可变数据对象"
+            println "  - 自动生成equals/hashCode/toString"
+            println "  - 适用于DTO/VO/Request/Response"
+            println "="*60 + "\n"
+            // 注意：Record使用建议仅提示，不中断编译
+        } else {
+            println "✅ Record类使用检查通过"
+        }
+    }
+}
+
+// 检查枚举fromCode方法
+tasks.register('checkEnumFromCodeMethod') {
+    group = 'verification'
+    description = '检查枚举类是否提供fromCode静态方法'
+
+    doLast {
+        def violations = []
+        def javaFiles = fileTree(dir: 'src/main/java', include: '**/*.java')
+
+        javaFiles.each { file ->
+            def content = file.text
+
+            // 只检查枚举类
+            if (content =~ /public\s+enum\s+\w+/) {
+                // 检查是否有code字段
+                if (content.contains('private final String code') ||
+                    content.contains('private String code')) {
+
+                    // 检查是否有fromCode方法
+                    if (!content.contains('fromCode')) {
+                        violations << "${file.path} - 枚举类定义了code字段但缺少fromCode()方法"
+                    }
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "⚠️  枚举fromCode方法检查警告！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n建议添加方法:"
+            println "  public static XXXEnum fromCode(String code) {"
+            println "      return Arrays.stream(values())"
+            println "          .filter(e -> e.code.equals(code))"
+            println "          .findFirst()"
+            println "          .orElseThrow(() -> new IllegalArgumentException(\"未知code: \" + code));"
+            println "  }"
+            println "="*60 + "\n"
+            // 注意：fromCode方法检查仅警告，不中断编译
+        } else {
+            println "✅ 枚举fromCode方法检查通过"
+        }
+    }
+}
+
+// 综合检查任务
+tasks.register('checkJavaCodingStandards') {
+    group = 'verification'
+    description = '执行所有Java编码规范检查'
+
+    dependsOn checkEnumNaming
+    dependsOn checkClassNaming
+    dependsOn checkLombokAnnotations
+    dependsOn checkResultPageResultNesting
+    dependsOn checkRecordUsage
+    dependsOn checkEnumFromCodeMethod
+}
+
+println "✓ Java编码规范约束已加载 (java-coding-standards.gradle)"

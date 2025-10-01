@@ -1,0 +1,309 @@
+/**
+ * MyBatis-Flex规范约束
+ *
+ * 作者: kk
+ * 创建日期: 2025-10-01
+ * 规范来源: ~/.claude/coding-standards/mybatis-flex-standards.md
+ */
+
+// 检查Entity注解
+tasks.register('checkEntityAnnotations') {
+    group = 'verification'
+    description = '检查Entity实体类是否正确使用MyBatis-Flex注解'
+
+    doLast {
+        def violations = []
+        def entityFiles = fileTree(dir: 'src/main/java', include: '**/*entity/**/*.java')
+
+        entityFiles.each { file ->
+            def content = file.text
+            def fileName = file.name
+
+            // 跳过Enum、接口、抽象类
+            if (content.contains('enum ') || content.contains('interface ') || content.contains('abstract class')) {
+                return
+            }
+
+            // 检查是否有@Table注解
+            if (!content.contains('@Table')) {
+                // 检查是否是实体类（有private字段且不是工具类）
+                if (content.contains('private ') && !fileName.contains('Util') && !fileName.contains('Helper')) {
+                    violations << "${file.path} - Entity类缺少@Table注解"
+                }
+            } else {
+                // 如果有@Table注解，检查是否有@Id注解
+                if (!content.contains('@Id')) {
+                    violations << "${file.path} - Entity类缺少@Id主键注解"
+                }
+
+                // 检查主键是否指定了keyType
+                if (content.contains('@Id') && !content.contains('keyType')) {
+                    violations << "${file.path} - @Id注解缺少keyType属性"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ Entity注解检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n正确示例:"
+            println "  @Table(\"table_name\")"
+            println "  public class EntityName {"
+            println "      @Id(keyType = KeyType.Auto)"
+            println "      private Long id;"
+            println "  }"
+            println "="*60 + "\n"
+            throw new GradleException("MyBatis-Flex规范检查失败：Entity注解缺失或不完整")
+        } else {
+            println "✅ Entity注解检查通过"
+        }
+    }
+}
+
+// 检查Mapper接口继承BaseMapper
+tasks.register('checkMapperInterface') {
+    group = 'verification'
+    description = '检查Mapper接口是否继承BaseMapper'
+
+    doLast {
+        def violations = []
+        def mapperFiles = fileTree(dir: 'src/main/java', include: '**/*mapper/**/*.java') +
+                          fileTree(dir: 'src/main/java', include: '**/*repository/**/*.java')
+
+        mapperFiles.each { file ->
+            def content = file.text
+            def fileName = file.name
+
+            // 只检查接口文件
+            if (!content.contains('interface ')) {
+                return
+            }
+
+            // 检查是否继承BaseMapper
+            if (!content.contains('extends BaseMapper')) {
+                violations << "${file.path} - Mapper接口应继承BaseMapper<T>"
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ Mapper接口检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n正确示例:"
+            println "  public interface PaymentMapper extends BaseMapper<Payment> {"
+            println "      // 继承BaseMapper后自动拥有CRUD方法"
+            println "  }"
+            println "="*60 + "\n"
+            throw new GradleException("MyBatis-Flex规范检查失败：Mapper未继承BaseMapper")
+        } else {
+            println "✅ Mapper接口检查通过"
+        }
+    }
+}
+
+// 检查枚举@EnumValue注解
+tasks.register('checkEnumValueAnnotation') {
+    group = 'verification'
+    description = '检查枚举类是否正确使用@EnumValue注解'
+
+    doLast {
+        def violations = []
+        def recommendEnumValue = []
+        def enumFiles = fileTree(dir: 'src/main/java', include: '**/*Enum.java')
+
+        enumFiles.each { file ->
+            def content = file.text
+
+            // 只检查枚举类
+            if (!content.contains('enum ')) {
+                return
+            }
+
+            // 检查是否有code字段
+            if (content.contains('private final String code') ||
+                content.contains('private String code')) {
+
+                // 检查是否有@EnumValue注解
+                if (!content.contains('@EnumValue')) {
+                    recommendEnumValue << "${file.path} - 枚举类定义了code字段，建议使用@EnumValue注解"
+                }
+            }
+        }
+
+        if (!recommendEnumValue.isEmpty()) {
+            println "\n" + "="*60
+            println "💡 枚举@EnumValue注解建议！发现 ${recommendEnumValue.size()} 个可优化项:"
+            println "="*60
+            recommendEnumValue.each { println it }
+            println "\n正确示例:"
+            println "  public enum PaymentStatusEnum {"
+            println "      PAID(\"PAID\", \"已支付\"),"
+            println "      CANCELLED(\"CANCELLED\", \"已取消\");"
+            println ""
+            println "      @EnumValue  // 标记此字段用于数据库存储"
+            println "      private final String code;"
+            println "      private final String description;"
+            println "  }"
+            println "="*60 + "\n"
+            // 注意：@EnumValue检查仅建议，不中断编译
+        } else {
+            println "✅ 枚举@EnumValue注解检查通过"
+        }
+    }
+}
+
+// 检查逻辑删除字段配置
+tasks.register('checkLogicDeleteField') {
+    group = 'verification'
+    description = '检查Entity的逻辑删除字段是否正确配置'
+
+    doLast {
+        def violations = []
+        def entityFiles = fileTree(dir: 'src/main/java', include: '**/*entity/**/*.java')
+
+        entityFiles.each { file ->
+            def content = file.text
+
+            // 跳过非实体类
+            if (!content.contains('@Table')) {
+                return
+            }
+
+            // 检查是否有isDeleted字段
+            if (content.contains('private') && content =~ /private\s+\w+\s+isDeleted/) {
+                // 检查是否标注了逻辑删除注解
+                if (!content.contains('isLogicDelete = true')) {
+                    violations << "${file.path} - isDeleted字段缺少@Column(isLogicDelete = true)注解"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ 逻辑删除字段检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n正确示例:"
+            println "  @Column(isLogicDelete = true)"
+            println "  private Integer isDeleted;"
+            println "="*60 + "\n"
+            throw new GradleException("MyBatis-Flex规范检查失败：逻辑删除字段配置错误")
+        } else {
+            println "✅ 逻辑删除字段检查通过"
+        }
+    }
+}
+
+// 检查乐观锁版本号字段
+tasks.register('checkVersionField') {
+    group = 'verification'
+    description = '检查Entity的乐观锁版本号字段是否正确配置'
+
+    doLast {
+        def violations = []
+        def entityFiles = fileTree(dir: 'src/main/java', include: '**/*entity/**/*.java')
+
+        entityFiles.each { file ->
+            def content = file.text
+
+            // 跳过非实体类
+            if (!content.contains('@Table')) {
+                return
+            }
+
+            // 检查是否有version字段
+            if (content.contains('private') && content =~ /private\s+\w+\s+version/) {
+                // 检查是否标注了乐观锁注解
+                if (!content.contains('version = true')) {
+                    violations << "${file.path} - version字段缺少@Column(version = true)注解"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ 乐观锁版本号字段检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n正确示例:"
+            println "  @Column(version = true)"
+            println "  private Integer version;"
+            println "="*60 + "\n"
+            throw new GradleException("MyBatis-Flex规范检查失败：乐观锁版本号字段配置错误")
+        } else {
+            println "✅ 乐观锁版本号字段检查通过"
+        }
+    }
+}
+
+// 检查时间字段自动填充
+tasks.register('checkTimeFieldAutoFill') {
+    group = 'verification'
+    description = '检查Entity的时间字段是否配置自动填充'
+
+    doLast {
+        def recommendations = []
+        def entityFiles = fileTree(dir: 'src/main/java', include: '**/*entity/**/*.java')
+
+        entityFiles.each { file ->
+            def content = file.text
+
+            // 跳过非实体类
+            if (!content.contains('@Table')) {
+                return
+            }
+
+            // 检查createTime字段
+            if (content =~ /private\s+LocalDateTime\s+createTime/) {
+                if (!content.contains('onInsertValue')) {
+                    recommendations << "${file.path} - createTime字段建议配置onInsertValue自动填充"
+                }
+            }
+
+            // 检查updateTime字段
+            if (content =~ /private\s+LocalDateTime\s+updateTime/) {
+                if (!content.contains('onUpdateValue')) {
+                    recommendations << "${file.path} - updateTime字段建议配置onUpdateValue自动填充"
+                }
+            }
+        }
+
+        if (!recommendations.isEmpty()) {
+            println "\n" + "="*60
+            println "💡 时间字段自动填充建议！发现 ${recommendations.size()} 个可优化项:"
+            println "="*60
+            recommendations.take(10).each { println it }
+            if (recommendations.size() > 10) {
+                println "... 还有 ${recommendations.size() - 10} 个建议未显示"
+            }
+            println "\n推荐配置:"
+            println "  @Column(value = \"create_time\", onInsertValue = \"now()\")"
+            println "  private LocalDateTime createTime;"
+            println ""
+            println "  @Column(value = \"update_time\", onInsertValue = \"now()\", onUpdateValue = \"now()\")"
+            println "  private LocalDateTime updateTime;"
+            println "="*60 + "\n"
+            // 注意：时间字段自动填充仅建议，不中断编译
+        } else {
+            println "✅ 时间字段自动填充检查通过"
+        }
+    }
+}
+
+// 综合检查任务
+tasks.register('checkMyBatisFlexStandards') {
+    group = 'verification'
+    description = '执行所有MyBatis-Flex规范检查'
+
+    dependsOn checkEntityAnnotations
+    dependsOn checkMapperInterface
+    dependsOn checkEnumValueAnnotation
+    dependsOn checkLogicDeleteField
+    dependsOn checkVersionField
+    dependsOn checkTimeFieldAutoFill
+}
+
+println "✓ MyBatis-Flex规范约束已加载 (mybatis-flex-standards.gradle)"
