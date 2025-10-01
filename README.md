@@ -26,6 +26,164 @@ SBT Plus 编码规范检查工具是一个基于 Gradle 的自动化编码规范
 
 ---
 
+## 📦 在其他 Gradle 项目中引入
+
+### 方式一: 直接 Clone 项目（推荐）
+
+1. **Clone 项目到你的项目目录**
+
+```bash
+cd /path/to/your-project
+git clone https://github.com/kk-418/coding-standards-gradle.git
+```
+
+2. **在 build.gradle 中引入**
+
+```groovy
+// 在项目根目录的 build.gradle 文件顶部添加
+plugins {
+    id 'java'
+    // ... 其他插件
+}
+
+// 应用编码规范检查配置
+apply from: 'coding-standards-gradle/coding-standards.gradle'
+
+// 其他配置...
+subprojects {
+    apply plugin: 'java'
+
+    // validateVoTypes 任务需要在 subprojects 中定义
+    // 如果没有，请参考本项目的 build.gradle 添加
+
+    // ... 其他配置
+}
+```
+
+3. **验证引入是否成功**
+
+```bash
+# 查看帮助
+gradle codingStandardsHelp
+
+# 执行检查
+gradle checkCodingStandards
+```
+
+### 方式二: Git Submodule（适合多项目共享）
+
+1. **添加为 Git Submodule**
+
+```bash
+cd /path/to/your-project
+git submodule add https://github.com/kk-418/coding-standards-gradle.git coding-standards-gradle
+```
+
+2. **在 build.gradle 中引入**（同方式一步骤2）
+
+3. **团队成员同步**
+
+```bash
+# 克隆项目时
+git clone --recursive https://github.com/your/project.git
+
+# 已有项目更新
+git submodule update --init --recursive
+```
+
+### 关键配置说明
+
+#### 1. validateVoTypes 任务（重要）
+
+如果你的项目需要 VO 类型校验，需要在 `subprojects` 中添加以下配置：
+
+```groovy
+// 在 build.gradle 的 subprojects 块中添加
+subprojects {
+    apply plugin: 'java'
+
+    // VO类型校验任务（需要 JavaParser 依赖）
+    tasks.register('validateVoTypes') {
+        group = 'verification'
+        description = '校验VO类不使用BigDecimal、Long ID和时间类型'
+
+        doLast {
+            // 检查逻辑（参考本项目 build.gradle 第 137-222 行）
+            // 这里需要完整的 validateVoTypes 实现
+        }
+    }
+
+    // 编译时自动执行
+    compileJava.dependsOn validateVoTypes
+}
+```
+
+**完整实现请参考**: 本项目的 `build.gradle` 文件（第 136-222 行）
+
+#### 2. 自定义检查规则
+
+如需自定义检查范围，可修改以下文件：
+
+- `coding-standards-gradle/common-coding.gradle` - 通用编码规范
+- `coding-standards-gradle/database-standards.gradle` - 数据库规范
+- `coding-standards-gradle/java-coding-standards.gradle` - Java编码规范
+- `coding-standards-gradle/mybatis-flex-standards.gradle` - MyBatis-Flex规范
+
+#### 3. 选择性启用检查
+
+如果不需要某些检查，可以在引入时跳过：
+
+```groovy
+// 仅引入需要的模块
+apply from: 'coding-standards-gradle/common-coding.gradle'
+apply from: 'coding-standards-gradle/java-coding-standards.gradle'
+// 不引入数据库和MyBatis-Flex规范
+```
+
+### 依赖要求
+
+编码规范检查工具需要以下依赖：
+
+1. **Gradle 版本**: 7.0+ (推荐 9.0+)
+2. **Java 版本**: 11+ (如使用 validateVoTypes，推荐 21)
+3. **JavaParser**: 用于 validateVoTypes 任务（可选）
+
+如需使用 validateVoTypes，在 buildscript 中添加：
+
+```groovy
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.github.javaparser:javaparser-core:3.27.0'
+    }
+}
+```
+
+### 故障排查
+
+#### 问题1: 找不到 validateVoTypes 任务
+
+**原因**: validateVoTypes 任务在子项目中定义，根项目无法直接访问。
+
+**解决方案**: 确保任务在 `subprojects` 块中定义，参考本项目 build.gradle。
+
+#### 问题2: JavaParser 依赖缺失
+
+**错误信息**: `Cannot resolve class StaticJavaParser`
+
+**解决方案**: 在 buildscript 中添加 JavaParser 依赖（见上文）。
+
+#### 问题3: 某些检查失败
+
+**解决方案**:
+1. 查看错误详情，了解违反的规范
+2. 参考 [GitHub 规范文档](https://github.com/kk-418/coding-standards) 修改代码
+3. 或临时跳过检查: `gradle compileJava -x validateVoTypes`
+
+---
+
 ## 🚀 快速开始
 
 ### 1. 查看可用任务
@@ -452,7 +610,7 @@ gradle compileJava -x validateVoTypes
 
 ## 📄 许可证
 
-本工具遵循 Apache License 2.0 许可证。
+本工具遵循 MIT License 许可证，详见 [LICENSE](./LICENSE) 文件。
 
 编码规范文档来源于 [kk-418/coding-standards](https://github.com/kk-418/coding-standards) 项目。
 
