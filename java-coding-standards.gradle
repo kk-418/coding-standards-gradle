@@ -289,6 +289,94 @@ tasks.register('checkEnumFromCodeMethod') {
     }
 }
 
+// VO类型校验任务 - 使用JavaParser进行精确的AST分析
+tasks.register('validateVoTypes') {
+    group = 'verification'
+    description = '校验VO类不使用BigDecimal、Long ID和时间类型'
+
+    // 配置阶段:定义输入文件(兼容Configuration Cache)
+    def voFiles = fileTree(dir: 'src/main/java', includes: [
+            '**/*VO.java',
+            '**/*Vo.java'
+    ])
+
+    doLast {
+        // 配置JavaParser支持Java 21
+        def config = new com.github.javaparser.ParserConfiguration()
+        config.setLanguageLevel(com.github.javaparser.ParserConfiguration.LanguageLevel.JAVA_21)
+        com.github.javaparser.StaticJavaParser.setConfiguration(config)
+
+        def violations = []
+
+        voFiles.each { file ->
+            try {
+                def cu = com.github.javaparser.StaticJavaParser.parse(file)
+
+                // 处理Class和Interface
+                cu.findAll(com.github.javaparser.ast.body.ClassOrInterfaceDeclaration.class).each { clazz ->
+                    if (clazz.nameAsString.endsWith("VO") || clazz.nameAsString.endsWith("Vo")) {
+                        clazz.findAll(com.github.javaparser.ast.body.FieldDeclaration.class).each { field ->
+                            def fieldType = field.elementType.asString()
+                            def fieldName = field.variables[0].nameAsString
+                            def lineNumber = field.begin.get().line
+
+                            if (fieldType == "BigDecimal") {
+                                violations << "${file.path}:${lineNumber} - ${fieldName} (BigDecimal) 应使用String"
+                            }
+                            if (fieldType == "Long" && (fieldName.toLowerCase().contains("id") || fieldName == "id")) {
+                                violations << "${file.path}:${lineNumber} - ${fieldName} (Long ID) 应使用String"
+                            }
+                            if (fieldType in ["Date", "LocalDateTime", "LocalDate", "LocalTime", "Instant", "Timestamp", "ZonedDateTime", "OffsetDateTime"]) {
+                                violations << "${file.path}:${lineNumber} - ${fieldName} (${fieldType}) 应使用String"
+                            }
+                        }
+                    }
+                }
+
+                // 处理Record类型
+                cu.findAll(com.github.javaparser.ast.body.RecordDeclaration.class).each { record ->
+                    if (record.nameAsString.endsWith("VO") || record.nameAsString.endsWith("Vo")) {
+                        record.parameters.each { param ->
+                            def fieldType = param.type.asString()
+                            def fieldName = param.nameAsString
+                            def lineNumber = param.begin.get().line
+
+                            if (fieldType == "BigDecimal") {
+                                violations << "${file.path}:${lineNumber} - ${fieldName} (BigDecimal) 应使用String"
+                            }
+                            if (fieldType == "Long" && (fieldName.toLowerCase().contains("id") || fieldName == "id")) {
+                                violations << "${file.path}:${lineNumber} - ${fieldName} (Long ID) 应使用String"
+                            }
+                            if (fieldType in ["Date", "LocalDateTime", "LocalDate", "LocalTime", "Instant", "Timestamp", "ZonedDateTime", "OffsetDateTime"]) {
+                                violations << "${file.path}:${lineNumber} - ${fieldName} (${fieldType}) 应使用String"
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn "解析文件失败: ${file.path} - ${e.message}"
+            }
+        }
+
+        if (violations) {
+            def message = "\n" + "=" * 60 + "\n" +
+                    "❌ VO类型校验失败！发现 ${violations.size()} 个问题:\n" +
+                    "=" * 60 + "\n\n" +
+                    violations.join('\n') + "\n\n" +
+                    "修改建议:\n" +
+                    "1. BigDecimal -> String (避免精度丢失)\n" +
+                    "2. Long ID -> String (避免JavaScript精度问题)\n" +
+                    "3. 时间类型 -> String (格式: yyyy-MM-dd HH:mm:ss)\n" +
+                    "4. 使用工具类: plus.sbt.common.util.VoTypeConverter\n" +
+                    "=" * 60 + "\n"
+
+            throw new GradleException(message)
+        }
+
+        println "✅ VO类型校验通过！所有VO类都符合规范。"
+    }
+}
+
 // 综合检查任务
 tasks.register('checkJavaCodingStandards') {
     group = 'verification'
@@ -300,6 +388,7 @@ tasks.register('checkJavaCodingStandards') {
     dependsOn checkResultPageResultNesting
     dependsOn checkRecordUsage
     dependsOn checkEnumFromCodeMethod
+    dependsOn validateVoTypes
 }
 
 println "✓ Java编码规范约束已加载 (java-coding-standards.gradle)"

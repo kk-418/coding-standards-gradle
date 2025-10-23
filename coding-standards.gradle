@@ -54,7 +54,7 @@ tasks.register('checkMandatoryStandards') {
     group = 'verification'
     description = '执行强制性编码规范检查（编译前必须通过）'
 
-    // 强制性检查列表（仅包含根项目级别的检查）
+    // 强制性检查列表
     dependsOn 'checkFullyQualifiedNames'          // 禁止全限定类名
     dependsOn 'checkLongConstantSuffix'           // Long常量后缀
     dependsOn 'checkSelectStar'                   // 禁止SELECT *
@@ -66,6 +66,7 @@ tasks.register('checkMandatoryStandards') {
     dependsOn 'checkMapperInterface'              // Mapper接口
     dependsOn 'checkLogicDeleteField'             // 逻辑删除字段
     dependsOn 'checkVersionField'                 // 乐观锁版本号字段
+    dependsOn 'validateVoTypes'                   // VO类型校验(BigDecimal/Long ID/时间类型)
 
     doLast {
         println "\n" + "="*60
