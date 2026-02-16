@@ -229,7 +229,7 @@ gradle build
 | 全限定类名 | `checkFullyQualifiedNames` | 禁止使用全限定类名 |
 | Long常量后缀 | `checkLongConstantSuffix` | Long常量必须使用大写L后缀 |
 | SELECT * | `checkSelectStar` | 禁止在SQL中使用SELECT * |
-| Entity必备字段 | `checkEntityRequiredFields` | Entity必须包含id/createTime/updateTime/isDeleted |
+| Entity必备字段 | `checkEntityRequiredFields` | Entity必须包含id/createdAt/updatedAt/isDeleted |
 | 金额字段类型 | `checkAmountFieldType` | 金额字段必须使用BigDecimal |
 | 枚举类命名 | `checkEnumNaming` | 枚举类必须以Enum结尾 |
 | Result嵌套 | `checkResultPageResultNesting` | 禁止Result<PageResult>嵌套 |
@@ -309,7 +309,7 @@ gradle checkMandatoryStandards
 # ❌ VO类型校验失败！发现 3 个问题:
 # /path/to/PaymentVO.java:15 - amount (BigDecimal) 应使用String
 # /path/to/OrderVO.java:23 - userId (Long ID) 应使用String
-# /path/to/OrderVO.java:30 - createTime (LocalDateTime) 应使用String
+# /path/to/OrderVO.java:30 - createdAt (LocalDateTime) 应使用String
 ```
 
 **修复方法**:
@@ -318,14 +318,14 @@ gradle checkMandatoryStandards
 public record PaymentVO(
     Long id,                    // Long ID
     BigDecimal amount,          // BigDecimal
-    LocalDateTime createTime    // LocalDateTime
+    LocalDateTime createdAt     // LocalDateTime
 ) {}
 
 // ✅ 正确示例
 public record PaymentVO(
     String id,                  // String
     String amount,              // String
-    String createTime           // String (格式: yyyy-MM-dd HH:mm:ss)
+    String createdAt            // String (格式: yyyy-MM-dd HH:mm:ss)
 ) {}
 ```
 

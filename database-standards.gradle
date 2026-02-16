@@ -61,14 +61,14 @@ tasks.register('checkSelectStar') {
 // 检查Entity实体类必备字段
 tasks.register('checkEntityRequiredFields') {
     group = 'verification'
-    description = '检查Entity实体类是否包含必备字段（id, createTime, updateTime, isDeleted）'
+    description = '检查Entity实体类是否包含必备字段（id, createdAt, updatedAt, isDeleted）'
 
     doLast {
         def violations = []
         def entityFiles = fileTree(dir: 'src/main/java', include: '**/*entity/**/*.java')
 
         // 必备字段列表
-        def requiredFields = ['id', 'createTime', 'updateTime', 'isDeleted']
+        def requiredFields = ['id', 'createdAt', 'updatedAt', 'isDeleted']
 
         entityFiles.each { file ->
             // 跳过Enum、接口、抽象类
@@ -107,8 +107,8 @@ tasks.register('checkEntityRequiredFields') {
             violations.each { println it }
             println "\n必备字段说明:"
             println "  - id: 主键ID"
-            println "  - createTime: 创建时间"
-            println "  - updateTime: 更新时间"
+            println "  - createdAt: 创建时间"
+            println "  - updatedAt: 更新时间"
             println "  - isDeleted: 逻辑删除标识"
             println "="*60 + "\n"
             throw new GradleException("数据库规范检查失败：Entity缺少必备字段")

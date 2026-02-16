@@ -256,17 +256,17 @@ tasks.register('checkTimeFieldAutoFill') {
                 return
             }
 
-            // 检查createTime字段
-            if (content =~ /private\s+LocalDateTime\s+createTime/) {
+            // 检查createdAt字段
+            if (content =~ /private\s+LocalDateTime\s+createdAt/) {
                 if (!content.contains('onInsertValue')) {
-                    recommendations << "${file.path} - createTime字段建议配置onInsertValue自动填充"
+                    recommendations << "${file.path} - createdAt字段建议配置onInsertValue自动填充"
                 }
             }
 
-            // 检查updateTime字段
-            if (content =~ /private\s+LocalDateTime\s+updateTime/) {
+            // 检查updatedAt字段
+            if (content =~ /private\s+LocalDateTime\s+updatedAt/) {
                 if (!content.contains('onUpdateValue')) {
-                    recommendations << "${file.path} - updateTime字段建议配置onUpdateValue自动填充"
+                    recommendations << "${file.path} - updatedAt字段建议配置onUpdateValue自动填充"
                 }
             }
         }
@@ -280,11 +280,11 @@ tasks.register('checkTimeFieldAutoFill') {
                 println "... 还有 ${recommendations.size() - 10} 个建议未显示"
             }
             println "\n推荐配置:"
-            println "  @Column(value = \"create_time\", onInsertValue = \"now()\")"
-            println "  private LocalDateTime createTime;"
+            println "  @Column(value = \"created_at\", onInsertValue = \"now()\")"
+            println "  private LocalDateTime createdAt;"
             println ""
-            println "  @Column(value = \"update_time\", onInsertValue = \"now()\", onUpdateValue = \"now()\")"
-            println "  private LocalDateTime updateTime;"
+            println "  @Column(value = \"updated_at\", onInsertValue = \"now()\", onUpdateValue = \"now()\")"
+            println "  private LocalDateTime updatedAt;"
             println "="*60 + "\n"
             // 注意：时间字段自动填充仅建议，不中断编译
         } else {

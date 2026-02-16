@@ -127,7 +127,7 @@ tasks.register('generateCodingStandardsReport') {
 1. ✓ 禁止全限定类名检查
 2. ✓ Long常量后缀检查（必须使用大写L）
 3. ✓ 禁止SELECT * 检查
-4. ✓ Entity必备字段检查（id/createTime/updateTime/isDeleted）
+4. ✓ Entity必备字段检查（id/createdAt/updatedAt/isDeleted）
 5. ✓ 金额字段类型检查（必须使用BigDecimal）
 6. ✓ 枚举类命名检查（必须以Enum结尾）
 7. ✓ Result/PageResult嵌套检查

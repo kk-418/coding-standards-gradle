@@ -36,7 +36,7 @@ coding-standards-gradle/
 
 #### 2. database-standards.gradle（数据库规范）
 - `checkSelectStar` - 禁止使用 SELECT *
-- `checkEntityRequiredFields` - Entity 必须包含 id/createTime/updateTime/isDeleted
+- `checkEntityRequiredFields` - Entity 必须包含 id/createdAt/updatedAt/isDeleted
 - `checkIndexNaming` - 索引命名规范（idx_/uk_ 前缀）
 - `checkAmountFieldType` - 金额字段必须使用 BigDecimal
 

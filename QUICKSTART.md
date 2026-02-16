@@ -44,14 +44,14 @@ gradle build
 public record PaymentVO(
     Long id,                    // 错误: Long ID
     BigDecimal amount,          // 错误: BigDecimal
-    LocalDateTime createTime    // 错误: LocalDateTime
+    LocalDateTime createdAt     // 错误: LocalDateTime
 ) {}
 
 // ✅ 正确
 public record PaymentVO(
     String id,                  // 正确: String
     String amount,              // 正确: String
-    String createTime           // 正确: String (格式: yyyy-MM-dd HH:mm:ss)
+    String createdAt            // 正确: String (格式: yyyy-MM-dd HH:mm:ss)
 ) {}
 ```
 
