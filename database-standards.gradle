@@ -67,9 +67,6 @@ tasks.register('checkEntityRequiredFields') {
         def violations = []
         def entityFiles = fileTree(dir: 'src/main/java', include: '**/*entity/**/*.java')
 
-        // 必备字段列表
-        def requiredFields = ['id', 'createdAt', 'updatedAt', 'isDeleted']
-
         entityFiles.each { file ->
             // 跳过Enum、接口、抽象类
             def content = file.text
@@ -81,6 +78,11 @@ tasks.register('checkEntityRequiredFields') {
             if (!content.contains('@Table')) {
                 return
             }
+
+            // TradeCoreEntity 删除语义统一使用 recordStatus，不再映射 MyBatis-Flex 逻辑删除字段。
+            def requiredFields = file.name == 'TradeCoreEntity.java'
+                    ? ['id', 'createdAt', 'updatedAt', 'recordStatus']
+                    : ['id', 'createdAt', 'updatedAt', 'isDeleted']
 
             // 检查必备字段
             def missingFields = []
@@ -109,7 +111,7 @@ tasks.register('checkEntityRequiredFields') {
             println "  - id: 主键ID"
             println "  - createdAt: 创建时间"
             println "  - updatedAt: 更新时间"
-            println "  - isDeleted: 逻辑删除标识"
+            println "  - isDeleted: 逻辑删除标识（TradeCoreEntity 使用 recordStatus）"
             println "="*60 + "\n"
             throw new GradleException("数据库规范检查失败：Entity缺少必备字段")
         } else {
