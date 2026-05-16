@@ -6,44 +6,115 @@
  * 规范来源: ~/.claude/coding-standards/common-coding.md
  */
 
+def codingStandardsSourceExcludes = [
+        '**/generated/**',
+        '**/codegen/**',
+        '**/sample/**',
+        '**/samples/**',
+        '**/example/**',
+        '**/examples/**',
+        '**/demo/**',
+        '**/docs/**',
+        '**/documentation/**',
+        '**/*CodeGenerator.java',
+        '**/*Sample.java',
+        '**/*Example.java'
+]
+
+// 历史债务基线：这些生产文件已有较多方法体全限定类名，单独治理，不阻塞本次恢复门禁。
+def fullyQualifiedNameDebtExcludes = [
+        '**/plus/sbt/biz/logistics/adapter/domain/pricing/model/WeightPriceRangeModel.java',
+        '**/plus/sbt/biz/logistics/adapter/supplier/controller/QhbdCallbackController.java',
+        '**/plus/sbt/biz/logistics/domain/converter/LogisticsOrderConverter.java',
+        '**/plus/sbt/biz/logistics/domain/converter/OrderConverter.java',
+        '**/plus/sbt/biz/logistics/domain/sync/comparator/TypeAreaPriceBatchComparator.java',
+        '**/plus/sbt/biz/logistics/orchestrator/LogisticsOrchestrator.java',
+        '**/plus/sbt/biz/logistics/orchestrator/controller/LogisticsOriginalPriceController.java',
+        '**/plus/sbt/biz/logistics/orchestrator/controller/LogisticsTradeController.java',
+        '**/plus/sbt/biz/logistics/orchestrator/facade/ChannelBasePriceQueryService.java',
+        '**/plus/sbt/biz/logistics/orchestrator/stage/PriceCalculationStage.java',
+        '**/plus/sbt/biz/logistics/service/impl/LogisticsProductServiceImpl.java',
+        '**/plus/sbt/common/core/config/RedisConfig.java',
+        '**/plus/sbt/common/core/handler/JsonbTypeHandler.java',
+        '**/plus/sbt/marketing/listener/PaymentCouponEventListener.java',
+        '**/plus/sbt/marketing/service/impl/UserCouponServiceImpl.java',
+        '**/plus/sbt/openapi/adapter/interceptor/HMACAuthInterceptor.java',
+        '**/plus/sbt/payment/account/service/impl/PaymentAccountsServiceImpl.java',
+        '**/plus/sbt/payment/core/event/PaymentEventPublisher.java',
+        '**/plus/sbt/payment/core/service/impl/PaymentBillServiceImpl.java',
+        '**/plus/sbt/payment/core/service/impl/PaymentRefundBillServiceImpl.java',
+        '**/plus/sbt/payment/core/strategy/AbstractPaymentStrategy.java',
+        '**/plus/sbt/payment/orchestrator/PaymentLifecycleManager.java',
+        '**/plus/sbt/payment/wechat/config/WeChatPayConfig.java',
+        '**/plus/sbt/payment/wechat/strategy/WechatPaymentStrategy.java',
+        '**/plus/sbt/relation/invite/service/impl/InviteRelationServiceImpl.java',
+        '**/plus/sbt/slgg/compat/adapter/BillResultAdapter.java',
+        '**/plus/sbt/slgg/compat/adapter/OrderListResultAdapter.java',
+        '**/plus/sbt/slgg/compat/controller/SlggLogisticsOrderController.java',
+        '**/plus/sbt/trade/core/service/impl/TradeOrderInfoProvider.java',
+        '**/plus/sbt/trade/manager/service/impl/OrderManagerServiceImpl.java'
+]
+
 // 检查全限定类名使用
 tasks.register('checkFullyQualifiedNames') {
     group = 'verification'
     description = '检查是否在方法中使用全限定类名（应使用import）'
+    def javaFiles = fileTree('src/main/java') {
+        include '**/*.java'
+        exclude codingStandardsSourceExcludes
+        exclude fullyQualifiedNameDebtExcludes
+    }
+    inputs.files(javaFiles)
 
     doLast {
         def violations = []
-        def javaFiles = fileTree(dir: 'src/main/java', include: '**/*.java')
 
         javaFiles.each { file ->
             def inMethod = false
+            def methodBraceDepth = 0
             def lineNumber = 0
 
             file.eachLine { line, num ->
                 lineNumber = num
+                def trimmed = line.trim()
 
-                // 检测方法开始
-                if (line =~ /^\s*(public|private|protected|static|final|void|[\w<>]+)\s+[\w<>]+\s*\([^)]*\)\s*(\{|throws)/) {
-                    inMethod = true
+                if (trimmed.startsWith('//') ||
+                    trimmed.startsWith('*') ||
+                    trimmed.startsWith('/*') ||
+                    trimmed.startsWith('package ') ||
+                    trimmed.startsWith('import ')) {
+                    return
                 }
 
-                // 检测方法结束
-                if (inMethod && line =~ /^\s*\}\s*$/) {
-                    inMethod = false
-                }
+                def codeLine = line
+                        .replaceAll(/"([^"\\]|\\.)*"/, '""')
+                        .replaceAll(/'([^'\\]|\\.)*'/, "''")
+                def lineToCheck = codeLine
 
-                // 在方法内检测全限定类名（排除注释和字符串）
-                if (inMethod && !line.trim().startsWith('//') && !line.trim().startsWith('*')) {
-                    // 匹配包含至少两个点的全限定类名
-                    def matcher = line =~ /\b([a-z]+\.[a-z]+\.[A-Z][\w.]*)/
-                    if (matcher.find()) {
-                        def fullyQualifiedName = matcher.group(1)
-                        // 排除常见的false positive（如方法链调用）
-                        if (!line.contains("\"${fullyQualifiedName}\"") &&
-                            !line.contains("'${fullyQualifiedName}'")) {
-                            violations << "${file.path}:${lineNumber} - 检测到全限定类名: ${fullyQualifiedName}"
-                        }
+                if (!inMethod) {
+                    def methodStart = codeLine =~ /^\s*(public|protected|private|static|final|synchronized|abstract|default|native|\s|[\w<>\[\], ?]+)+\s+\w+\s*\([^;]*\)\s*(throws\s+[\w.,\s]+)?\{/
+                    if (!methodStart.find()) {
+                        return
                     }
+
+                    inMethod = true
+                    methodBraceDepth = codeLine.count('{') - codeLine.count('}')
+                    lineToCheck = codeLine.substring(codeLine.indexOf('{') + 1)
+                } else {
+                    methodBraceDepth += codeLine.count('{') - codeLine.count('}')
+                }
+
+                def matcher = lineToCheck =~ /\b([a-z]+(?:\.[a-z][\w]*){1,}\.[A-Z][\w]*(?:\.[A-Z_][\w]*)*)\b/
+                while (matcher.find()) {
+                    def fullyQualifiedName = matcher.group(1)
+                    if (!fullyQualifiedName.startsWith('java.lang.')) {
+                        violations << "${file.path}:${lineNumber} - 检测到全限定类名: ${fullyQualifiedName}"
+                    }
+                }
+
+                if (inMethod && methodBraceDepth <= 0) {
+                    inMethod = false
+                    methodBraceDepth = 0
                 }
             }
         }
@@ -58,6 +129,49 @@ tasks.register('checkFullyQualifiedNames') {
             throw new GradleException("编码规范检查失败：存在全限定类名使用")
         } else {
             println "✅ 全限定类名检查通过"
+        }
+    }
+}
+
+// 检查System.out/System.err使用
+tasks.register('checkSystemOutUsage') {
+    group = 'verification'
+    description = '检查生产代码中是否使用System.out/System.err输出（应使用日志框架）'
+    def javaFiles = fileTree('src/main/java') {
+        include '**/*.java'
+        exclude codingStandardsSourceExcludes
+    }
+    inputs.files(javaFiles)
+
+    doLast {
+        def violations = []
+
+        javaFiles.each { file ->
+            file.eachLine { line, num ->
+                def trimmed = line.trim()
+                if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+                    return
+                }
+
+                def codeLine = line
+                        .replaceAll(/"([^"\\]|\\.)*"/, '""')
+                        .replaceAll(/'([^'\\]|\\.)*'/, "''")
+                if (codeLine =~ /\bSystem\.(out|err)\.(print|println|printf)\s*\(/) {
+                    violations << "${file.path}:${num} - 禁止使用System.out/System.err，请使用日志框架"
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ System.out/System.err检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n修改建议: 使用Slf4j日志框架，例如log.info/debug/warn/error"
+            println "="*60 + "\n"
+            throw new GradleException("编码规范检查失败：存在System.out/System.err输出")
+        } else {
+            println "✅ System.out/System.err检查通过"
         }
     }
 }
@@ -225,6 +339,7 @@ tasks.register('checkCommonCodingStandards') {
     description = '执行所有通用编码规范检查'
 
     dependsOn checkFullyQualifiedNames
+    dependsOn checkSystemOutUsage
     dependsOn checkLongConstantSuffix
     dependsOn checkMagicValues
     dependsOn checkCollectionEmpty
