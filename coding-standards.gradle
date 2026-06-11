@@ -22,6 +22,7 @@ apply from: 'coding-standards-gradle/common-coding.gradle'
 apply from: 'coding-standards-gradle/database-standards.gradle'
 apply from: 'coding-standards-gradle/java-coding-standards.gradle'
 apply from: 'coding-standards-gradle/mybatis-flex-standards.gradle'
+apply from: 'coding-standards-gradle/permission-standards.gradle'
 
 // 统一检查任务
 tasks.register('checkCodingStandards') {
@@ -66,6 +67,7 @@ tasks.register('checkMandatoryStandards') {
     dependsOn 'checkMapperInterface'              // Mapper接口
     dependsOn 'checkLogicDeleteField'             // 逻辑删除字段
     dependsOn 'checkVersionField'                 // 乐观锁版本号字段
+    dependsOn 'checkControllerPermissionAnnotations' // Controller权限注解
 
     doLast {
         println "\n" + "="*60

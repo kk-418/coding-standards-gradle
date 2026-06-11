@@ -1,0 +1,143 @@
+/**
+ * 权限注解强制规范
+ *
+ * 已进入权限治理的 Controller（文件内包含 @SaCheckPermission 或 @SaCheckRole）中，
+ * 每个公开映射方法都必须在同一注解块内声明权限/角色/登录保护，或由类级注解统一保护。
+ */
+
+tasks.register('checkControllerPermissionAnnotations') {
+    group = 'verification'
+    description = '检查已治理 Controller 的公开接口是否缺少 Sa-Token 保护注解'
+
+    doLast {
+        def violations = []
+        def governedControllers = [
+                'InvoiceInputController.java',
+                'InvoiceOutputController.java',
+                'InvoiceSummaryController.java',
+                'BankJournalController.java',
+                'BankJournalVoucherLinkController.java',
+                'BankStatementController.java',
+                'CashJournalController.java',
+                'EcommerceJournalController.java',
+                'EcommerceJournalSummaryController.java',
+                'FundAccountController.java',
+                'PaymentChannelController.java',
+                'ThirdPartyJournalController.java',
+                'ThirdPartyJournalVoucherLinkController.java',
+                'BalanceSheetController.java',
+                'CashFlowStatementController.java',
+                'CustomReportController.java',
+                'IncomeStatementController.java',
+                'ReportFormulaController.java',
+                'TaxReportExportController.java',
+                'ClosingTemplateController.java',
+                'IncomeTaxAdjustmentController.java',
+                'MonthlyClosingController.java',
+                'BatchVoucherController.java',
+                'VoucherAttachmentController.java',
+                'InitialBalanceController.java',
+                'LedgerController.java',
+                'ManageController.java',
+                'DataDictionaryController.java',
+                'EmployeeAnnualTaxController.java',
+                'PayrollDetailController.java',
+                'SalaryAccountConfigController.java',
+                'SalaryStandardController.java',
+                'SalaryVoucherRuleController.java',
+                'TaxDeductionController.java',
+                'EmployeeEnrollmentController.java',
+                'InsuranceRecordController.java',
+                'InsuranceSchemeController.java'
+        ] as Set
+
+        def controllerFiles = fileTree(dir: rootDir, include: [
+                '**/src/main/java/**/*Controller.java'
+        ], exclude: [
+                '**/build/**'
+        ])
+
+        controllerFiles.each { file ->
+            if (!governedControllers.contains(file.name)) {
+                return
+            }
+
+            def content = file.text
+            if (!content.contains('@RestController')) {
+                return
+            }
+
+            def permissionGoverned = content.contains('@SaCheckPermission') || content.contains('@SaCheckRole')
+            if (!permissionGoverned) {
+                return
+            }
+
+            def lines = file.readLines()
+            def classHasGuard = false
+            def classAnnotationBlock = []
+            def methodAnnotationBlock = []
+            def hasMappingInBlock = false
+
+            lines.eachWithIndex { line, index ->
+                def trimmed = line.trim()
+                def lineNo = index + 1
+
+                if (trimmed.startsWith('@')) {
+                    methodAnnotationBlock << trimmed
+                    if (trimmed ==~ /@(Get|Post|Put|Delete|Patch|Request)Mapping\b.*/) {
+                        hasMappingInBlock = true
+                    }
+                    return
+                }
+
+                if (trimmed ==~ /.*\b(public\s+)?(class|interface|record)\s+\w+.*/) {
+                    classAnnotationBlock = new ArrayList(methodAnnotationBlock)
+                    classHasGuard = classAnnotationBlock.any { annotation ->
+                        annotation.startsWith('@SaCheckPermission')
+                                || annotation.startsWith('@SaCheckRole')
+                                || annotation.startsWith('@SaCheckLogin')
+                    }
+                    methodAnnotationBlock.clear()
+                    hasMappingInBlock = false
+                    return
+                }
+
+                if (hasMappingInBlock && trimmed.contains(' public ') || hasMappingInBlock && trimmed.startsWith('public ')) {
+                    def methodHasGuard = methodAnnotationBlock.any { annotation ->
+                        annotation.startsWith('@SaCheckPermission')
+                                || annotation.startsWith('@SaCheckRole')
+                                || annotation.startsWith('@SaCheckLogin')
+                    }
+                    if (!classHasGuard && !methodHasGuard) {
+                        violations << "${file.path}:${lineNo} - 公开映射方法缺少 @SaCheckPermission/@SaCheckRole/@SaCheckLogin"
+                    }
+                    methodAnnotationBlock.clear()
+                    hasMappingInBlock = false
+                    return
+                }
+
+                if (trimmed.isEmpty() || trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+                    return
+                }
+
+                if (!hasMappingInBlock) {
+                    methodAnnotationBlock.clear()
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            println "\n" + "="*60
+            println "❌ Controller权限注解检查失败！发现 ${violations.size()} 个问题:"
+            println "="*60
+            violations.each { println it }
+            println "\n修改建议: 为接口方法补充 @SaCheckPermission，或用 @SaCheckRole/@SaCheckLogin 明确保护边界。"
+            println "="*60 + "\n"
+            throw new GradleException("编码规范检查失败：Controller公开接口缺少权限保护注解")
+        }
+
+        println "✅ Controller权限注解检查通过"
+    }
+}
+
+println "✓ 权限注解规范约束已加载 (permission-standards.gradle)"
