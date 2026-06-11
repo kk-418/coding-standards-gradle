@@ -61,6 +61,7 @@ tasks.register('checkMandatoryStandards') {
     dependsOn 'checkEntityRequiredFields'         // Entity必备字段
     dependsOn 'checkAmountFieldType'              // 金额字段类型
     dependsOn 'checkEnumNaming'                   // 枚举类命名
+    dependsOn 'checkEnumFromCodeMethod'           // 枚举fromCode方法
     dependsOn 'checkResultPageResultNesting'      // Result/PageResult嵌套
     dependsOn 'checkEntityAnnotations'            // Entity注解
     dependsOn 'checkMapperInterface'              // Mapper接口
@@ -87,7 +88,6 @@ tasks.register('checkAdvisoryStandards') {
     dependsOn 'checkClassNaming'                  // 类命名规范
     dependsOn 'checkLombokAnnotations'            // Lombok注解
     dependsOn 'checkRecordUsage'                  // Record类使用
-    dependsOn 'checkEnumFromCodeMethod'           // 枚举fromCode方法
     dependsOn 'checkEnumValueAnnotation'          // 枚举@EnumValue注解
     dependsOn 'checkTimeFieldAutoFill'            // 时间字段自动填充
 
@@ -130,11 +130,12 @@ tasks.register('generateCodingStandardsReport') {
 4. ✓ Entity必备字段检查（id/createdAt/updatedAt/isDeleted）
 5. ✓ 金额字段类型检查（必须使用BigDecimal）
 6. ✓ 枚举类命名检查（必须以Enum结尾）
-7. ✓ Result/PageResult嵌套检查
-8. ✓ Entity注解检查（@Table/@Id）
-9. ✓ Mapper接口检查（继承BaseMapper）
-10. ✓ 逻辑删除字段检查
-11. ✓ 乐观锁版本号字段检查
+7. ✓ 枚举fromCode方法检查
+8. ✓ Result/PageResult嵌套检查
+9. ✓ Entity注解检查（@Table/@Id）
+10. ✓ Mapper接口检查（继承BaseMapper）
+11. ✓ 逻辑删除字段检查
+12. ✓ 乐观锁版本号字段检查
 
 ### 建议性检查（仅警告）
 1. ⚠ 魔法值检查
@@ -143,9 +144,8 @@ tasks.register('generateCodingStandardsReport') {
 4. ⚠ 类命名规范检查
 5. ⚠ Lombok注解使用检查
 6. ⚠ Record类使用建议
-7. ⚠ 枚举fromCode方法检查
-8. ⚠ 枚举@EnumValue注解检查
-9. ⚠ 时间字段自动填充检查
+7. ⚠ 枚举@EnumValue注解检查
+8. ⚠ 时间字段自动填充检查
 
 ---
 

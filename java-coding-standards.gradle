@@ -255,26 +255,22 @@ tasks.register('checkEnumFromCodeMethod') {
         javaFiles.each { file ->
             def content = file.text
 
-            // 只检查枚举类
-            if (content =~ /public\s+enum\s+\w+/) {
-                // 检查是否有code字段
-                if (content.contains('private final String code') ||
-                    content.contains('private String code')) {
-
-                    // 检查是否有fromCode方法
-                    if (!content.contains('fromCode')) {
-                        violations << "${file.path} - 枚举类定义了code字段但缺少fromCode()方法"
-                    }
+            // 只检查顶层public枚举类
+            def matcher = content =~ /(?m)^public\s+enum\s+(\w+)/
+            while (matcher.find()) {
+                def enumName = matcher.group(1)
+                if (!(content =~ /(?m)\bpublic\s+static\s+${enumName}\s+fromCode\s*\(\s*String\s+\w+\s*\)/)) {
+                    violations << "${file.path} - 顶层枚举类缺少fromCode(String code)方法: ${enumName}"
                 }
             }
         }
 
         if (!violations.isEmpty()) {
             println "\n" + "="*60
-            println "⚠️  枚举fromCode方法检查警告！发现 ${violations.size()} 个问题:"
+            println "❌ 枚举fromCode方法检查失败！发现 ${violations.size()} 个问题:"
             println "="*60
             violations.each { println it }
-            println "\n建议添加方法:"
+            println "\n必须添加方法:"
             println "  public static XXXEnum fromCode(String code) {"
             println "      return Arrays.stream(values())"
             println "          .filter(e -> e.code.equals(code))"
@@ -282,7 +278,7 @@ tasks.register('checkEnumFromCodeMethod') {
             println "          .orElseThrow(() -> new IllegalArgumentException(\"未知code: \" + code));"
             println "  }"
             println "="*60 + "\n"
-            // 注意：fromCode方法检查仅警告，不中断编译
+            throw new GradleException("Java编码规范检查失败：枚举类缺少fromCode方法")
         } else {
             println "✅ 枚举fromCode方法检查通过"
         }
