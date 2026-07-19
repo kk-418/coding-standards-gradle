@@ -19,8 +19,6 @@ tasks.register('checkControllerPermissionAnnotations') {
                 'BankJournalVoucherLinkController.java',
                 'BankStatementController.java',
                 'CashJournalController.java',
-                'EcommerceJournalController.java',
-                'EcommerceJournalSummaryController.java',
                 'FundAccountController.java',
                 'PaymentChannelController.java',
                 'ThirdPartyJournalController.java',
