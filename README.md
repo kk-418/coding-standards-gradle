@@ -7,6 +7,31 @@
 
 ---
 
+## 在 YCWY 中的同步方式
+
+本目录在主仓库 `kk-418/ycwy` 中以 **git subtree** 挂载（路径 `ycwy-backend/coding-standards-gradle`，远端名 `coding-standards-gradle`，分支 `ycwy-pinned`）。worktree / clone 后内容已在树内，**不需要** `git submodule update`。
+
+在主仓库根目录：
+
+```bash
+# 拉取上游 ycwy-pinned 到本目录（squash）
+scripts/coding-standards-subtree.sh pull
+
+# 把主仓库对本目录的改动推回上游
+scripts/coding-standards-subtree.sh push
+```
+
+等价手动命令：
+
+```bash
+git subtree pull --prefix=ycwy-backend/coding-standards-gradle coding-standards-gradle ycwy-pinned --squash
+git subtree push --prefix=ycwy-backend/coding-standards-gradle coding-standards-gradle ycwy-pinned
+```
+
+首次或新 clone 后若尚无远端：`git remote add coding-standards-gradle git@github.com:kk-418/coding-standards-gradle.git`
+
+---
+
 ## 📖 简介
 
 SBT Plus 编码规范检查工具是一个基于 Gradle 的自动化编码规范检查系统，集成到项目构建流程中，帮助团队保持代码质量和一致性。
