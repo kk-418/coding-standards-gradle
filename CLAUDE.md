@@ -55,6 +55,7 @@ coding-standards-gradle/
 - `checkLogicDeleteField` - isDeleted 字段配置检查
 - `checkVersionField` - version 字段配置检查（乐观锁）
 - `checkTimeFieldAutoFill` - 时间字段自动填充配置建议
+- `checkRawBookTableName` - 账套表禁止 `QueryWrapper.from("表名")` 字符串形式（强制）
 
 ## 常用命令
 
@@ -131,6 +132,7 @@ gradle generateCodingStandardsReport
 - `checkMapperInterface` - Mapper 接口检查
 - `checkLogicDeleteField` - 逻辑删除字段检查
 - `checkVersionField` - 乐观锁版本号检查
+- `checkRawBookTableName` - 账套表禁止字符串表名查询
 
 ### 建议性检查（⚠️ 仅警告）
 以下检查失败仅输出警告，不中断编译：

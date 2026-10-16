@@ -68,6 +68,7 @@ tasks.register('checkMandatoryStandards') {
     dependsOn 'checkLogicDeleteField'             // 逻辑删除字段
     dependsOn 'checkVersionField'                 // 乐观锁版本号字段
     dependsOn 'checkControllerPermissionAnnotations' // Controller权限注解
+    dependsOn 'checkRawBookTableName'              // 账套表禁止字符串表名
 
     doLast {
         println "\n" + "="*60
@@ -136,6 +137,7 @@ tasks.register('generateCodingStandardsReport') {
 9. ✓ Mapper接口检查（继承BaseMapper）
 10. ✓ 逻辑删除字段检查
 11. ✓ 乐观锁版本号字段检查
+12. ✓ 账套表禁止 QueryWrapper.from("表名")
 
 ### 建议性检查（仅警告）
 1. ⚠ 魔法值检查
@@ -245,6 +247,7 @@ ${"="*60}
     - checkLogicDeleteField           逻辑删除字段
     - checkVersionField               乐观锁版本号字段
     - checkTimeFieldAutoFill          时间字段自动填充
+    - checkRawBookTableName           账套表禁止字符串表名
 
 【报告生成】
   gradle generateCodingStandardsReport  生成检查报告
